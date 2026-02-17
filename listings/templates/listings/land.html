@@ -1,0 +1,265 @@
+{% extends "listings/base_land.html" %}
+{% load static %}
+{% block content %}
+
+<style>
+
+/* ===== FORCE DARK FULL PAGE ===== */
+html,body{
+  background:#020617 !important;
+}
+
+/* BREAK BASE TEMPLATE CONTAINER */
+.fullscreen-wrapper{
+  width:100vw;
+  margin-left:calc(-50vw + 50%);
+}
+
+/* FULL PAGE DARK */
+.page{
+  position:relative;
+  min-height:calc(100vh - 70px);
+  background:#020617;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  padding:40px;
+}
+
+/* CANVAS FULL */
+#neuralCanvas{
+  position:fixed;
+  inset:0;
+  z-index:0;
+}
+
+/* CENTER CONTENT */
+.center-layer{
+  position:relative;
+  z-index:2;
+  width:100%;
+  max-width:900px;
+  text-align:center;
+}
+
+/* HEADER */
+.title{
+  font-size:42px;
+  font-weight:900;
+  background:linear-gradient(135deg,#22d3ee,#a78bfa);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+.subtitle{
+  color:#94a3b8;
+  margin-bottom:40px;
+}
+
+/* DARK CARD */
+.form-card{
+  background:rgba(15,23,42,.7);
+  backdrop-filter:blur(25px);
+  border-radius:24px;
+  padding:50px;
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 30px 90px rgba(0,0,0,.7);
+  text-align:left;
+}
+
+/* FORM */
+.form-label{
+  color:#cbd5f5;
+  font-size:12px;
+  font-weight:800;
+}
+
+.form-control{
+  background:#020617 !important;
+  border:1px solid #334155 !important;
+  color:#fff !important;
+  border-radius:14px !important;
+  padding:18px !important;
+}
+
+/* ===== AI BUTTON ===== */
+.btn-predict{
+  background:linear-gradient(135deg,#6366f1,#22d3ee);
+  color:#fff;
+  border:none;
+  padding:18px;
+  border-radius:20px;
+  font-weight:900;
+  font-size:18px;
+  margin-top:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+
+/* SCANNING ICON */
+.scan-icon{
+  width:18px;
+  height:18px;
+  border:2px solid #fff;
+  border-radius:50%;
+  border-top-color:transparent;
+  animation:spin 1s linear infinite;
+  display:none;
+}
+
+@keyframes spin{
+  to{transform:rotate(360deg)}
+}
+
+/* RESULT */
+.result{
+  margin-top:40px;
+  padding:35px;
+  border-radius:20px;
+  background:rgba(15,23,42,.75);
+  color:#fff;
+  text-align:center;
+}
+</style>
+
+<div class="fullscreen-wrapper">
+<div class="page">
+
+<canvas id="neuralCanvas"></canvas>
+
+<div class="center-layer">
+
+  <h1 class="title">🏡 Land Price Prediction</h1>
+  <p class="subtitle">Smart, location-based land value estimation</p>
+
+  <div class="form-card">
+    <form method="post" id="predictForm">
+      {% csrf_token %}
+      <div class="row g-4">
+
+        <div class="col-md-6">
+          <label class="form-label">STATE</label>
+          <select id="stateSelect" name="state" class="form-control" required>
+            <option value="">Select State</option>
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">CITY</label>
+          <select id="citySelect" name="city" class="form-control" required>
+            <option value="">Select City</option>
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">PLOT TYPE</label>
+          <select name="plot_type" class="form-control" required>
+            <option value="">Select Type</option>
+            <option>Residential Plot</option>
+            <option>Commercial Plot</option>
+            <option>Agricultural Plot</option>
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">AREA (Sq.ft)</label>
+          <input type="number" name="Area" class="form-control" required>
+        </div>
+
+      </div>
+
+      <!-- ⭐ AI RECOGNIZE BUTTON -->
+      <button class="btn-predict w-100" id="predictBtn">
+        <span id="btnText">🚀 Predict Land Price</span>
+        <span class="scan-icon" id="scanIcon"></span>
+      </button>
+    </form>
+  </div>
+
+  {% if result %}
+  <div class="result">
+    <small>Estimated Market Value</small>
+    <h2 class="fw-bold mt-2">₹ {{ result|floatformat:0 }}</h2>
+  </div>
+  {% endif %}
+
+</div>
+</div>
+</div>
+
+<script src="{% static 'listings/js/state_city_loader.js' %}"></script>
+
+<!-- ⭐ BUTTON AI RECOGNIZE EFFECT -->
+<script>
+document.getElementById("predictForm").addEventListener("submit",function(){
+  document.getElementById("btnText").innerText="🤖 Recognizing...";
+  document.getElementById("scanIcon").style.display="inline-block";
+});
+</script>
+
+<script>
+const canvas=document.getElementById("neuralCanvas");
+const ctx=canvas.getContext("2d");
+
+function resize(){
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+}
+resize();
+window.addEventListener("resize",resize);
+
+const particles=[];
+const count=90;
+
+for(let i=0;i<count;i++){
+  particles.push({
+    x:Math.random()*canvas.width,
+    y:Math.random()*canvas.height,
+    vx:(Math.random()-.5)*0.7,
+    vy:(Math.random()-.5)*0.7
+  });
+}
+
+function animate(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  for(let i=0;i<count;i++){
+    let p=particles[i];
+    p.x+=p.vx;
+    p.y+=p.vy;
+
+    if(p.x<0||p.x>canvas.width)p.vx*=-1;
+    if(p.y<0||p.y>canvas.height)p.vy*=-1;
+
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,2,0,Math.PI*2);
+    ctx.fillStyle="#22d3ee";
+    ctx.fill();
+  }
+
+  for(let i=0;i<count;i++){
+    for(let j=i+1;j<count;j++){
+      let dx=particles[i].x-particles[j].x;
+      let dy=particles[i].y-particles[j].y;
+      let dist=Math.sqrt(dx*dx+dy*dy);
+
+      if(dist<130){
+        ctx.strokeStyle="rgba(99,102,241,"+(1-dist/130)+")";
+        ctx.lineWidth=0.6;
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x,particles[i].y);
+        ctx.lineTo(particles[j].x,particles[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+
+{% endblock %}
